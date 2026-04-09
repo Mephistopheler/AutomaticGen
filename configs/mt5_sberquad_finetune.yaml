@@ -1,6 +1,8 @@
 seed: 42
 output_dir: outputs/mt5_sberquad_finetune
 run_validation_generation: true
+runtime:
+  device: auto
 
 model:
   name: google/mt5-base

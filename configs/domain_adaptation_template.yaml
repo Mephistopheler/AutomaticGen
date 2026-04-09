@@ -1,6 +1,8 @@
 seed: 42
 output_dir: outputs/domain_adaptation_template
 run_validation_generation: true
+runtime:
+  device: auto
 
 model:
   name: ai-forever/ruT5-base

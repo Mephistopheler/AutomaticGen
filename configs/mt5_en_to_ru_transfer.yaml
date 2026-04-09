@@ -1,6 +1,8 @@
 seed: 42
 output_dir: outputs/mt5_en_to_ru_transfer
 run_validation_generation: true
+runtime:
+  device: auto
 
 model:
   name: google/mt5-base

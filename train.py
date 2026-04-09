@@ -78,7 +78,7 @@ def main() -> None:
     checkpoint_dir = ensure_dir(output_dir / 'checkpoints')
     logs_dir = ensure_dir(output_dir / 'logs')
 
-    device = get_device()
+    device = get_device(cfg.get('runtime', {}).get('device', 'auto'))
     print(f'Using device: {device}')
 
     model_cfg = dict(cfg['model'])
@@ -86,6 +86,7 @@ def main() -> None:
     tokenizer_use_fast = bool(model_cfg.pop('use_fast', False))
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=tokenizer_use_fast)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name, **model_cfg)
+
     model.to(device)
 
     template = cfg['data']['source_template']

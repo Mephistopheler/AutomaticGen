@@ -28,7 +28,7 @@ def main() -> None:
 
     tokenizer = AutoTokenizer.from_pretrained(args.checkpoint)
     model = AutoModelForSeq2SeqLM.from_pretrained(args.checkpoint)
-    device = get_device()
+    device = get_device(cfg.get('runtime', {}).get('device', 'auto'))
     model.to(device)
 
     tokenized = tokenize_dataset(

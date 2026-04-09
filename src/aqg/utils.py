@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-import os
+import importlib
 import random
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
@@ -18,9 +18,23 @@ def set_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
-def get_device() -> torch.device:
-    if torch.cuda.is_available():
+def get_device(preferred: str = 'auto') -> Any:
+    normalized = preferred.lower().strip()
+
+    if normalized in {'auto', 'cuda'} and torch.cuda.is_available():
         return torch.device('cuda')
+
+    if normalized in {'auto', 'directml'}:
+        torch_directml = importlib.util.find_spec('torch_directml')
+        if torch_directml is not None:
+            directml = importlib.import_module('torch_directml')
+            return directml.device()
+        if normalized == 'directml':
+            print("Warning: 'directml' requested, but torch-directml is not installed. Falling back to CPU.")
+
+    if normalized == 'cuda':
+        print("Warning: 'cuda' requested, but CUDA is unavailable. Falling back to CPU.")
+
     return torch.device('cpu')
 
 

@@ -26,7 +26,7 @@ def main() -> None:
 
     cfg = load_config(args.config)
     template = cfg['data']['source_template']
-    device = get_device()
+    device = get_device(cfg.get('runtime', {}).get('device', 'auto'))
 
     tokenizer = AutoTokenizer.from_pretrained(args.checkpoint)
     model = AutoModelForSeq2SeqLM.from_pretrained(args.checkpoint).to(device)
