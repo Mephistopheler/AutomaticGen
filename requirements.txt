@@ -7,6 +7,7 @@ rouge-score>=0.1.2
 bert-score>=0.3.13
 accelerate>=1.0
 sentencepiece>=0.2.0
+protobuf>=4.25
 PyYAML>=6.0
 pandas>=2.2
 numpy>=1.26

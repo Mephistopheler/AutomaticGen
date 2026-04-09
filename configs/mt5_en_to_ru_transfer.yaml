@@ -4,6 +4,7 @@ run_validation_generation: true
 
 model:
   name: google/mt5-base
+  use_fast: false
 
 data:
   source_template: "generate question: context: {context} answer: {answer}"

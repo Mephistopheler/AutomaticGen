@@ -81,9 +81,11 @@ def main() -> None:
     device = get_device()
     print(f'Using device: {device}')
 
-    model_name = cfg['model']['name']
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+    model_cfg = dict(cfg['model'])
+    model_name = model_cfg.pop('name')
+    tokenizer_use_fast = bool(model_cfg.pop('use_fast', False))
+    tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=tokenizer_use_fast)
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_name, **model_cfg)
     model.to(device)
 
     template = cfg['data']['source_template']
@@ -193,7 +195,7 @@ def main() -> None:
     if cfg.get('run_validation_generation', True):
         best_dir = checkpoint_dir / 'best'
         model = AutoModelForSeq2SeqLM.from_pretrained(best_dir).to(device)
-        tokenizer = AutoTokenizer.from_pretrained(best_dir)
+        tokenizer = AutoTokenizer.from_pretrained(best_dir, use_fast=tokenizer_use_fast)
         predictions = generate_predictions(
             model=model,
             tokenizer=tokenizer,
