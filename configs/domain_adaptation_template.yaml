@@ -5,6 +5,7 @@ run_validation_generation: true
 model:
   name: ai-forever/ruT5-base
   use_fast: false
+  use_safetensors: true
 
 data:
   source_template: "generate question: context: {context} answer: {answer}"

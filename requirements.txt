@@ -1,4 +1,4 @@
-torch>=2.2
+torch>=2.6
 transformers>=4.50,<6
 datasets>=3.0
 evaluate>=0.4

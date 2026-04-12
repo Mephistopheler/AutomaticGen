@@ -84,8 +84,21 @@ def main() -> None:
     model_cfg = dict(cfg['model'])
     model_name = model_cfg.pop('name')
     tokenizer_use_fast = bool(model_cfg.pop('use_fast', False))
+    use_safetensors = bool(model_cfg.pop('use_safetensors', True))
     tokenizer = AutoTokenizer.from_pretrained(model_name, use_fast=tokenizer_use_fast)
-    model = AutoModelForSeq2SeqLM.from_pretrained(model_name, **model_cfg)
+    try:
+        model = AutoModelForSeq2SeqLM.from_pretrained(
+            model_name,
+            use_safetensors=use_safetensors,
+            **model_cfg,
+        )
+    except ValueError as exc:
+        if 'torch to at least v2.6' in str(exc):
+            raise RuntimeError(
+                'Model loading failed because your Torch version is below 2.6 and '
+                '`transformers` now blocks `torch.load` for security reasons '                '(CVE-2025-32434). '                'Upgrade Torch to >=2.6 OR set model.use_safetensors=true and use a '                'checkpoint that provides safetensors weights.'
+            ) from exc
+        raise
     model.to(device)
 
     template = cfg['data']['source_template']
