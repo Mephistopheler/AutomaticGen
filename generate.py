@@ -5,9 +5,8 @@ import json
 from pathlib import Path
 from typing import List
 
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-
 from src.aqg.config_utils import load_config
+from src.aqg.transformers_text import AutoModelForSeq2SeqLM, AutoTokenizer
 from src.aqg.utils import get_device
 
 

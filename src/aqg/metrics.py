@@ -3,7 +3,7 @@ from __future__ import annotations
 import statistics
 from typing import Any, Dict, Iterable, List, Optional
 
-import evaluate
+
 from bert_score import score as bertscore_score
 from sacrebleu import corpus_bleu
 
@@ -33,6 +33,8 @@ def compute_text_metrics(
     results['sacrebleu_signature'] = str(bleu.format(signature=True)).split(' = ')[0]
 
     try:
+        import evaluate
+
         rouge = evaluate.load('rouge')
         rouge_scores = rouge.compute(predictions=predictions, references=references)
         results.update({
@@ -45,6 +47,8 @@ def compute_text_metrics(
         results['rouge_error'] = str(exc)
 
     try:
+        import evaluate
+
         meteor = evaluate.load('meteor')
         meteor_score = meteor.compute(predictions=predictions, references=references)
         results['meteor'] = float(meteor_score.get('meteor', 0.0))

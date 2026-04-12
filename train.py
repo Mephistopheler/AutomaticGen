@@ -10,7 +10,7 @@ import torch
 from torch.optim import AdamW
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-from transformers import (
+from src.aqg.transformers_text import (
     AutoModelForSeq2SeqLM,
     AutoTokenizer,
     DataCollatorForSeq2Seq,
@@ -97,6 +97,15 @@ def main() -> None:
             raise RuntimeError(
                 'Model loading failed because your Torch version is below 2.6 and '
                 '`transformers` now blocks `torch.load` for security reasons '                '(CVE-2025-32434). '                'Upgrade Torch to >=2.6 OR set model.use_safetensors=true and use a '                'checkpoint that provides safetensors weights.'
+            ) from exc
+        raise
+    except OSError as exc:
+        if use_safetensors:
+            raise RuntimeError(
+                f'Model loading failed for {model_name!r} while use_safetensors=true. '
+                'This checkpoint may not provide safetensors weights, and the automatic '
+                'Hugging Face conversion service did not return a usable response. '
+                'Set model.use_safetensors=false to load the PyTorch checkpoint instead.'
             ) from exc
         raise
     model.to(device)

@@ -6,11 +6,11 @@ from typing import Any, Dict, List
 
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 
 from src.aqg.config_utils import load_config, save_json
 from src.aqg.data import load_dataset_group, tokenize_dataset
 from src.aqg.metrics import compute_text_metrics
+from src.aqg.transformers_text import AutoModelForSeq2SeqLM, AutoTokenizer, DataCollatorForSeq2Seq
 from src.aqg.utils import get_device, save_jsonl
 
 
