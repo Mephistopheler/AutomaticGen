@@ -6,6 +6,7 @@ model:
   name: google/mt5-base
   use_fast: false
   use_safetensors: false
+  tie_word_embeddings: false
 
 data:
   source_template: "generate question: context: {context} answer: {answer}"

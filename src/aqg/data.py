@@ -20,7 +20,31 @@ class NormalizedExample:
 
 
 def _normalize_text(value: Any) -> str:
-    return ' '.join(str(value or '').split())
+    return ' '.join(_repair_mojibake(str(value or '')).split())
+
+
+def _repair_mojibake(text: str) -> str:
+    if '\u0420' not in text and '\u0421' not in text:
+        return text
+
+    raw = bytearray()
+    for char in text:
+        codepoint = ord(char)
+        if codepoint <= 0xFF:
+            raw.append(codepoint)
+            continue
+        try:
+            raw.extend(char.encode('cp1251'))
+        except UnicodeEncodeError:
+            return text
+
+    try:
+        repaired = raw.decode('utf-8')
+    except UnicodeDecodeError:
+        return text
+    if repaired.count('\ufffd') > text.count('\ufffd'):
+        return text
+    return repaired
 
 
 def build_source_text(template: str, context: str, answer: str) -> str:
@@ -127,17 +151,27 @@ def load_one_spec(spec: Dict[str, Any], template: str) -> Dataset:
 
     if spec_type == 'hf':
         dataset = load_dataset(spec['path'], spec.get('name'), split=spec['split'])
-        return normalize_dataset(dataset, dataset_name=dataset_name, language=language, template=template)
+        normalized = normalize_dataset(dataset, dataset_name=dataset_name, language=language, template=template)
+        return _limit_dataset(normalized, spec.get('max_samples'))
 
     if spec_type == 'json':
         dataset = load_dataset('json', data_files=spec['data_files'], split=spec.get('split', 'train'))
-        return normalize_dataset(dataset, dataset_name=dataset_name, language=language, template=template)
+        normalized = normalize_dataset(dataset, dataset_name=dataset_name, language=language, template=template)
+        return _limit_dataset(normalized, spec.get('max_samples'))
 
     if spec_type == 'csv':
         dataset = load_dataset('csv', data_files=spec['data_files'], split=spec.get('split', 'train'))
-        return normalize_dataset(dataset, dataset_name=dataset_name, language=language, template=template)
+        normalized = normalize_dataset(dataset, dataset_name=dataset_name, language=language, template=template)
+        return _limit_dataset(normalized, spec.get('max_samples'))
 
     raise ValueError(f'Unsupported dataset spec type: {spec_type}')
+
+
+def _limit_dataset(dataset: Dataset, max_samples: Any) -> Dataset:
+    if max_samples is None:
+        return dataset
+    limit = min(int(max_samples), len(dataset))
+    return dataset.select(range(limit))
 
 
 def load_dataset_group(specs: Iterable[Dict[str, Any]], template: str) -> Dataset:
@@ -167,8 +201,7 @@ def tokenize_dataset(dataset: Dataset, tokenizer: Any, max_source_length: int, m
         return model_inputs
 
     keep_columns = dataset.column_names
-    tokenized = dataset.map(_tokenize, batched=True, remove_columns=[])
-    tokenized.set_format(type='torch', columns=['input_ids', 'attention_mask', 'labels'])
+    tokenized = dataset.map(_tokenize, batched=True, remove_columns=keep_columns)
     tokenized._keep_in_memory = False  # type: ignore[attr-defined]
     tokenized.info.description = f'Tokenized columns preserved from: {keep_columns}'
     return tokenized

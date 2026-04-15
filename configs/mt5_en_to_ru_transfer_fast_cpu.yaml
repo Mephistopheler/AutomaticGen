@@ -1,50 +1,53 @@
 seed: 42
-output_dir: outputs/mt5_sberquad_finetune
-run_validation_generation: true
+output_dir: outputs/mt5_en_to_ru_transfer_fast_cpu
+run_validation_generation: false
 
 model:
-  name: google/mt5-base
+  name: google/mt5-small
   use_fast: false
   use_safetensors: false
   tie_word_embeddings: false
 
 data:
   source_template: "generate question: context: {context} answer: {answer}"
-  max_source_length: 384
-  max_target_length: 64
+  max_source_length: 256
+  max_target_length: 48
 
   train_datasets:
     - type: hf
-      path: kuznetsoffandrey/sberquad
+      path: rajpurkar/squad
       split: train
-      language: ru
-      dataset_name: sberquad_train
+      language: en
+      dataset_name: squad_train_fast
+      max_samples: 5000
 
   validation_datasets:
     - type: hf
-      path: kuznetsoffandrey/sberquad
+      path: rajpurkar/squad
       split: validation
-      language: ru
-      dataset_name: sberquad_validation
+      language: en
+      dataset_name: squad_validation_fast
+      max_samples: 500
 
   evaluation_datasets:
     - type: hf
       path: kuznetsoffandrey/sberquad
       split: validation
       language: ru
-      dataset_name: sberquad_validation
+      dataset_name: sberquad_validation_fast
+      max_samples: 500
 
 training:
-  batch_size: 4
-  learning_rate: 3.0e-5
-  num_epochs: 3
+  batch_size: 2
+  learning_rate: 3.0e-5e
+  num_epochs: 1
   gradient_accumulation_steps: 4
   warmup_ratio: 0.1
-  early_stopping_patience: 2
+  early_stopping_patience: 1
 
 generation:
-  max_new_tokens: 64
-  num_beams: 4
+  max_new_tokens: 48
+  num_beams: 2
   do_sample: false
   temperature: 1.0
   top_p: 1.0

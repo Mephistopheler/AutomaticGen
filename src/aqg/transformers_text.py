@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
+
+os.environ.setdefault('DISABLE_SAFETENSORS_CONVERSION', 'true')
 
 
 def _always_false() -> bool:

@@ -160,9 +160,10 @@ def main() -> None:
         for step, batch in enumerate(progress, start=1):
             batch = {k: v.to(device) for k, v in batch.items()}
             outputs = model(**batch)
-            loss = outputs.loss / grad_accum_steps
+            batch_loss = outputs.loss
+            loss = batch_loss / grad_accum_steps
             loss.backward()
-            epoch_loss += float(loss.item())
+            epoch_loss += float(batch_loss.item())
 
             if step % grad_accum_steps == 0 or step == len(train_loader):
                 optimizer.step()
