@@ -1,0 +1,56 @@
+seed: 42
+output_dir: outputs/rut5_sberquad_fast
+run_validation_generation: false
+
+model:
+  name: ai-forever/ruT5-base
+  use_fast: false
+  use_safetensors: true
+
+data:
+  source_template: "generate question: context: {context} answer: {answer}"
+  max_source_length: 256
+  max_target_length: 48
+
+  train_datasets:
+    - type: hf
+      path: kuznetsoffandrey/sberquad
+      split: train
+      language: ru
+      dataset_name: sberquad_train_fast
+      max_samples: 5000
+
+  validation_datasets:
+    - type: hf
+      path: kuznetsoffandrey/sberquad
+      split: validation
+      language: ru
+      dataset_name: sberquad_validation_fast
+      max_samples: 500
+
+  evaluation_datasets:
+    - type: hf
+      path: kuznetsoffandrey/sberquad
+      split: validation
+      language: ru
+      dataset_name: sberquad_validation_fast
+      max_samples: 500
+
+training:
+  batch_size: 2
+  learning_rate: 3.0e-5
+  num_epochs: 1
+  gradient_accumulation_steps: 4
+  warmup_ratio: 0.06
+  early_stopping_patience: 1
+
+generation:
+  max_new_tokens: 48
+  num_beams: 2
+  do_sample: false
+  temperature: 1.0
+  top_p: 1.0
+
+evaluation:
+  language: ru
+  bertscore_model_type: bert-base-multilingual-cased

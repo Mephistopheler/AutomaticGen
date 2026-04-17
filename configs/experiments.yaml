@@ -1,0 +1,81 @@
+experiments:
+  - id: t5_squad_en
+    title: "T5-base on English SQuAD"
+    config: configs/t5_squad_en_finetune.yaml
+    model_family: t5
+    model_name: t5-base
+    train_language: en
+    eval_language: en
+    dataset: squad
+    scenario: monolingual_en
+
+  - id: mt5_squad_en
+    title: "mT5-base on English SQuAD"
+    config: configs/mt5_squad_en_finetune.yaml
+    model_family: mt5
+    model_name: google/mt5-base
+    train_language: en
+    eval_language: en
+    dataset: squad
+    scenario: monolingual_en
+
+  - id: mt5_sberquad_ru
+    title: "mT5-base on Russian SberQuAD"
+    config: configs/mt5_sberquad_finetune.yaml
+    model_family: mt5
+    model_name: google/mt5-base
+    train_language: ru
+    eval_language: ru
+    dataset: sberquad
+    scenario: monolingual_ru
+
+  - id: rut5_sberquad_ru
+    title: "ruT5-base on Russian SberQuAD"
+    config: configs/rut5_sberquad_finetune.yaml
+    model_family: rut5
+    model_name: ai-forever/ruT5-base
+    train_language: ru
+    eval_language: ru
+    dataset: sberquad
+    scenario: monolingual_ru
+
+  - id: mt5_en_to_ru_transfer
+    title: "mT5-base trained on English SQuAD, evaluated on Russian SberQuAD"
+    config: configs/mt5_en_to_ru_transfer.yaml
+    model_family: mt5
+    model_name: google/mt5-base
+    train_language: en
+    eval_language: ru
+    dataset: squad_to_sberquad
+    scenario: cross_lingual_transfer
+
+fast_experiments:
+  - id: t5_squad_en_fast
+    title: "T5-small quick English smoke test"
+    config: configs/t5_squad_en_fast.yaml
+    model_family: t5
+    model_name: t5-small
+    train_language: en
+    eval_language: en
+    dataset: squad
+    scenario: fast_monolingual_en
+
+  - id: mt5_en_to_ru_fast
+    title: "mT5-small quick English-to-Russian smoke test"
+    config: configs/mt5_en_to_ru_transfer_fast_cpu.yaml
+    model_family: mt5
+    model_name: google/mt5-small
+    train_language: en
+    eval_language: ru
+    dataset: squad_to_sberquad
+    scenario: fast_cross_lingual_transfer
+
+  - id: rut5_sberquad_fast
+    title: "ruT5-base quick Russian smoke test"
+    config: configs/rut5_sberquad_fast.yaml
+    model_family: rut5
+    model_name: ai-forever/ruT5-base
+    train_language: ru
+    eval_language: ru
+    dataset: sberquad
+    scenario: fast_monolingual_ru
