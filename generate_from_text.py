@@ -89,6 +89,14 @@ def main() -> None:
     parser.add_argument('--output_jsonl', help='Optional path for generated rows')
     parser.add_argument('--max_answers', type=int, default=5)
     parser.add_argument(
+        '--answer_extractor',
+        choices=['auto', 'spacy', 'heuristic'],
+        default='auto',
+        help='Answer/keyphrase extraction backend.',
+    )
+    parser.add_argument('--language', choices=['auto', 'en', 'ru'], default='auto')
+    parser.add_argument('--spacy_model', help='Optional spaCy model name, e.g. en_core_web_sm or ru_core_news_sm')
+    parser.add_argument(
         '--strategy',
         choices=['hybrid', 'template', 'model'],
         default='hybrid',
@@ -126,7 +134,13 @@ def main() -> None:
         model = AutoModelForSeq2SeqLM.from_pretrained(args.checkpoint).to(device)
         model.eval()
 
-    candidates = extract_answer_candidates(context, max_answers=args.max_answers)
+    candidates = extract_answer_candidates(
+        context,
+        max_answers=args.max_answers,
+        method=args.answer_extractor,
+        language=args.language,
+        spacy_model=args.spacy_model,
+    )
     if not candidates:
         raise ValueError('No answer candidates found in the input text')
 
@@ -147,6 +161,7 @@ def main() -> None:
             'answer_text': candidate.text,
             'answer_kind': candidate.kind,
             'answer_score': candidate.score,
+            'answer_extractor': args.answer_extractor,
             'source_sentence': candidate.sentence,
             'generated_question': question,
             'model_question': raw_question,

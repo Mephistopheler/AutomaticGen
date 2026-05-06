@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Iterable, List
+from typing import Iterable, List, Optional
 
 
 @dataclass(frozen=True)
@@ -58,8 +58,27 @@ _STOPWORDS = {
 }
 
 
-def extract_answer_candidates(context: str, max_answers: int = 5) -> List[AnswerCandidate]:
+def extract_answer_candidates(
+    context: str,
+    max_answers: int = 5,
+    method: str = 'auto',
+    language: str = 'auto',
+    spacy_model: Optional[str] = None,
+) -> List[AnswerCandidate]:
     context = _normalize(context)
+    if method in {'auto', 'spacy'}:
+        spacy_candidates = _extract_spacy_candidates(
+            context=context,
+            language=language,
+            spacy_model=spacy_model,
+        )
+        if spacy_candidates or method == 'spacy':
+            return spacy_candidates[:max_answers]
+
+    return _extract_heuristic_candidates(context, max_answers=max_answers)
+
+
+def _extract_heuristic_candidates(context: str, max_answers: int = 5) -> List[AnswerCandidate]:
     candidates: List[AnswerCandidate] = []
 
     for sentence in _split_sentences(context):
@@ -72,6 +91,99 @@ def extract_answer_candidates(context: str, max_answers: int = 5) -> List[Answer
     unique = _deduplicate(candidates)
     unique.sort(key=lambda item: item.score, reverse=True)
     return unique[:max_answers]
+
+
+def _extract_spacy_candidates(
+    context: str,
+    language: str = 'auto',
+    spacy_model: Optional[str] = None,
+) -> List[AnswerCandidate]:
+    try:
+        import spacy
+    except ImportError:
+        return []
+
+    model_name = spacy_model or _default_spacy_model(context=context, language=language)
+    try:
+        nlp = spacy.load(model_name)
+    except OSError:
+        return []
+
+    doc = nlp(context)
+    candidates: List[AnswerCandidate] = []
+    candidates.extend(_spacy_entity_candidates(doc))
+    candidates.extend(_spacy_noun_phrase_candidates(doc))
+
+    unique = _deduplicate(candidates)
+    unique.sort(key=lambda item: item.score, reverse=True)
+    return unique
+
+
+def _default_spacy_model(context: str, language: str) -> str:
+    resolved = language
+    if resolved == 'auto':
+        resolved = 'ru' if re.search(r'[\u0400-\u04FF]', context) else 'en'
+    if resolved == 'ru':
+        return 'ru_core_news_sm'
+    return 'en_core_web_sm'
+
+
+def _spacy_entity_candidates(doc) -> Iterable[AnswerCandidate]:
+    priority = {
+        'DATE': 4.0,
+        'TIME': 3.9,
+        'MONEY': 3.8,
+        'PERCENT': 3.8,
+        'QUANTITY': 3.7,
+        'PERSON': 3.6,
+        'PER': 3.6,
+        'ORG': 3.5,
+        'GPE': 3.4,
+        'LOC': 3.4,
+        'EVENT': 3.3,
+        'NORP': 3.2,
+        'FAC': 3.1,
+    }
+    for ent in doc.ents:
+        text = _clean_candidate(ent.text)
+        if not _is_valid_candidate(text):
+            continue
+        sentence = ent.sent.text if ent.sent is not None else ''
+        score = priority.get(ent.label_, 2.8)
+        yield AnswerCandidate(text=text, score=score, kind=f'spacy_{ent.label_.lower()}', sentence=sentence)
+
+
+def _spacy_noun_phrase_candidates(doc) -> Iterable[AnswerCandidate]:
+    try:
+        noun_chunks = list(doc.noun_chunks)
+    except NotImplementedError:
+        noun_chunks = []
+    except ValueError:
+        noun_chunks = []
+
+    for chunk in noun_chunks:
+        text = _clean_candidate(chunk.text)
+        if _is_valid_candidate(text):
+            yield AnswerCandidate(text=text, score=2.4, kind='spacy_noun_chunk', sentence=chunk.sent.text)
+
+    spans = []
+    current = []
+    allowed_pos = {'ADJ', 'NOUN', 'PROPN', 'NUM'}
+    for token in doc:
+        if token.pos_ in allowed_pos and not token.is_stop and not token.is_punct:
+            current.append(token)
+            continue
+        if current:
+            spans.append(current)
+            current = []
+    if current:
+        spans.append(current)
+
+    for span_tokens in spans:
+        text = _clean_candidate(' '.join(token.text for token in span_tokens))
+        if _is_valid_candidate(text):
+            sentence = span_tokens[0].sent.text if span_tokens[0].sent is not None else ''
+            yield AnswerCandidate(text=text, score=2.0, kind='spacy_pos_phrase', sentence=sentence)
 
 
 def _normalize(text: str) -> str:
