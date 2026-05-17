@@ -152,26 +152,29 @@ def load_one_spec(spec: Dict[str, Any], template: str) -> Dataset:
     if spec_type == 'hf':
         dataset = load_dataset(spec['path'], spec.get('name'), split=spec['split'])
         normalized = normalize_dataset(dataset, dataset_name=dataset_name, language=language, template=template)
-        return _limit_dataset(normalized, spec.get('max_samples'))
+        return _limit_dataset(normalized, spec.get('max_samples'), spec.get('sample_seed'))
 
     if spec_type == 'json':
         dataset = load_dataset('json', data_files=spec['data_files'], split=spec.get('split', 'train'))
         normalized = normalize_dataset(dataset, dataset_name=dataset_name, language=language, template=template)
-        return _limit_dataset(normalized, spec.get('max_samples'))
+        return _limit_dataset(normalized, spec.get('max_samples'), spec.get('sample_seed'))
 
     if spec_type == 'csv':
         dataset = load_dataset('csv', data_files=spec['data_files'], split=spec.get('split', 'train'))
         normalized = normalize_dataset(dataset, dataset_name=dataset_name, language=language, template=template)
-        return _limit_dataset(normalized, spec.get('max_samples'))
+        return _limit_dataset(normalized, spec.get('max_samples'), spec.get('sample_seed'))
 
     raise ValueError(f'Unsupported dataset spec type: {spec_type}')
 
 
-def _limit_dataset(dataset: Dataset, max_samples: Any) -> Dataset:
+def _limit_dataset(dataset: Dataset, max_samples: Any, sample_seed: Any = None) -> Dataset:
     if max_samples is None:
         return dataset
-    limit = min(int(max_samples), len(dataset))
-    return dataset.select(range(limit))
+    limited = dataset
+    if sample_seed is not None:
+        limited = limited.shuffle(seed=int(sample_seed))
+    limit = min(int(max_samples), len(limited))
+    return limited.select(range(limit))
 
 
 def load_dataset_group(specs: Iterable[Dict[str, Any]], template: str) -> Dataset:

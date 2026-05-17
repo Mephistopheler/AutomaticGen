@@ -49,6 +49,30 @@ experiments:
     dataset: squad_to_sberquad
     scenario: cross_lingual_transfer
 
+  - id: mt5_sberquad_diploma_efficient
+    title: "mT5-base efficient Russian SberQuAD run for diploma"
+    config: configs/mt5_sberquad_diploma_efficient.yaml
+    model_family: mt5
+    model_name: google/mt5-base
+    train_language: ru
+    eval_language: ru
+    dataset: sberquad_balanced
+    scenario: efficient_monolingual_ru
+
+  - id: rut5_sberquad_diploma_efficient
+    title: "ruT5-base efficient Russian SberQuAD run for diploma"
+    config: configs/rut5_sberquad_diploma_efficient.yaml
+    model_family: rut5
+    model_name: ai-forever/ruT5-base
+    train_language: ru
+    eval_language: ru
+    dataset: sberquad_balanced
+    scenario: efficient_monolingual_ru
+
+
+
+
+
 fast_experiments:
   - id: t5_squad_en_fast
     title: "T5-small quick English smoke test"
