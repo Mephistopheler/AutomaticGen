@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import math
 import time
-from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -24,50 +23,14 @@ from src.aqg.metrics import compute_text_metrics
 from src.aqg.utils import ensure_dir, format_seconds, get_device, set_seed
 
 
-def get_autocast_context(device: torch.device, mixed_precision: str):
-    if device.type != 'cuda' or mixed_precision == 'no':
-        return nullcontext()
-    dtype = torch.bfloat16 if mixed_precision == 'bf16' else torch.float16
-    return torch.amp.autocast(device_type='cuda', dtype=dtype)
-
-
-def resolve_mixed_precision(value: Any, device: torch.device) -> str:
-    mode = str(value or 'no').lower()
-    if mode in {'false', 'none', 'off'}:
-        return 'no'
-    if mode in {'true', 'yes', 'auto'}:
-        if device.type == 'cuda':
-            return 'bf16' if torch.cuda.is_bf16_supported() else 'fp16'
-        return 'no'
-    if mode not in {'no', 'fp16', 'bf16'}:
-        raise ValueError(f'Unsupported mixed_precision value: {value!r}')
-    if device.type != 'cuda':
-        return 'no'
-    if mode == 'bf16' and not torch.cuda.is_bf16_supported():
-        print('bf16 is not supported on this GPU; falling back to fp16.')
-        return 'fp16'
-    return mode
-
-
-def save_model_checkpoint(model: Any, tokenizer: Any, output_dir: Path) -> None:
-    previous_use_cache = getattr(getattr(model, 'config', None), 'use_cache', None)
-    if previous_use_cache is not None:
-        model.config.use_cache = True
-    model.save_pretrained(output_dir)
-    tokenizer.save_pretrained(output_dir)
-    if previous_use_cache is not None:
-        model.config.use_cache = previous_use_cache
-
-
-def evaluate_loss(model: Any, dataloader: DataLoader, device: torch.device, mixed_precision: str = 'no') -> float:
+def evaluate_loss(model: Any, dataloader: DataLoader, device: torch.device) -> float:
     model.eval()
     total_loss = 0.0
     total_steps = 0
     with torch.no_grad():
         for batch in dataloader:
             batch = {k: v.to(device) for k, v in batch.items()}
-            with get_autocast_context(device, mixed_precision):
-                outputs = model(**batch)
+            outputs = model(**batch)
             total_loss += float(outputs.loss.item())
             total_steps += 1
     return total_loss / max(total_steps, 1)
@@ -147,15 +110,6 @@ def main() -> None:
         raise
     model.to(device)
 
-    training_cfg = cfg.get('training', {})
-    mixed_precision = resolve_mixed_precision(training_cfg.get('mixed_precision', 'no'), device)
-    if training_cfg.get('gradient_checkpointing', False):
-        model.gradient_checkpointing_enable()
-        if hasattr(model, 'config'):
-            model.config.use_cache = False
-        print('Gradient checkpointing enabled.')
-    print(f'Mixed precision: {mixed_precision}')
-
     template = cfg['data']['source_template']
     train_dataset_raw = load_dataset_group(cfg['data']['train_datasets'], template=template)
     val_dataset_raw = load_dataset_group(cfg['data']['validation_datasets'], template=template)
@@ -178,13 +132,11 @@ def main() -> None:
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collator)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collator)
 
-    optimizer = AdamW(model.parameters(), lr=float(training_cfg['learning_rate']))
-    epochs = int(training_cfg['num_epochs'])
-    grad_accum_steps = int(training_cfg.get('gradient_accumulation_steps', 1))
-    scaler = torch.amp.GradScaler('cuda', enabled=(device.type == 'cuda' and mixed_precision == 'fp16'))
-    save_each_epoch = bool(training_cfg.get('save_each_epoch', True))
+    optimizer = AdamW(model.parameters(), lr=float(cfg['training']['learning_rate']))
+    epochs = int(cfg['training']['num_epochs'])
+    grad_accum_steps = int(cfg['training'].get('gradient_accumulation_steps', 1))
     total_training_steps = math.ceil(len(train_loader) / grad_accum_steps) * epochs
-    warmup_ratio = float(training_cfg.get('warmup_ratio', 0.1))
+    warmup_ratio = float(cfg['training'].get('warmup_ratio', 0.1))
     num_warmup_steps = int(total_training_steps * warmup_ratio)
     scheduler = get_linear_schedule_with_warmup(
         optimizer,
@@ -194,7 +146,7 @@ def main() -> None:
 
     training_log: List[Dict[str, Any]] = []
     best_val_loss = float('inf')
-    patience = int(training_cfg.get('early_stopping_patience', 2))
+    patience = int(cfg['training'].get('early_stopping_patience', 2))
     patience_counter = 0
     global_step = 0
 
@@ -207,16 +159,14 @@ def main() -> None:
 
         for step, batch in enumerate(progress, start=1):
             batch = {k: v.to(device) for k, v in batch.items()}
-            with get_autocast_context(device, mixed_precision):
-                outputs = model(**batch)
-                batch_loss = outputs.loss
-                loss = batch_loss / grad_accum_steps
-            scaler.scale(loss).backward()
+            outputs = model(**batch)
+            batch_loss = outputs.loss
+            loss = batch_loss / grad_accum_steps
+            loss.backward()
             epoch_loss += float(batch_loss.item())
 
             if step % grad_accum_steps == 0 or step == len(train_loader):
-                scaler.step(optimizer)
-                scaler.update()
+                optimizer.step()
                 scheduler.step()
                 optimizer.zero_grad(set_to_none=True)
                 global_step += 1
@@ -224,7 +174,7 @@ def main() -> None:
             progress.set_postfix(loss=f'{loss.item() * grad_accum_steps:.4f}')
 
         avg_train_loss = epoch_loss / max(len(train_loader), 1)
-        avg_val_loss = evaluate_loss(model, val_loader, device, mixed_precision=mixed_precision)
+        avg_val_loss = evaluate_loss(model, val_loader, device)
 
         epoch_record = {
             'epoch': epoch,
@@ -235,15 +185,16 @@ def main() -> None:
         training_log.append(epoch_record)
         print(epoch_record)
 
-        if save_each_epoch:
-            epoch_dir = ensure_dir(checkpoint_dir / f'epoch_{epoch}')
-            save_model_checkpoint(model, tokenizer, epoch_dir)
+        epoch_dir = ensure_dir(checkpoint_dir / f'epoch_{epoch}')
+        model.save_pretrained(epoch_dir)
+        tokenizer.save_pretrained(epoch_dir)
 
         if avg_val_loss < best_val_loss:
             best_val_loss = avg_val_loss
             patience_counter = 0
             best_dir = ensure_dir(checkpoint_dir / 'best')
-            save_model_checkpoint(model, tokenizer, best_dir)
+            model.save_pretrained(best_dir)
+            tokenizer.save_pretrained(best_dir)
             print(f'Best checkpoint updated: {best_dir}')
         else:
             patience_counter += 1
@@ -260,9 +211,6 @@ def main() -> None:
             'elapsed_seconds': elapsed,
             'elapsed_hms': format_seconds(elapsed),
             'device': str(device),
-            'mixed_precision': mixed_precision,
-            'gradient_checkpointing': bool(training_cfg.get('gradient_checkpointing', False)),
-            'save_each_epoch': save_each_epoch,
         },
         logs_dir / 'training_summary.json',
     )
