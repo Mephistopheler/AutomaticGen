@@ -91,8 +91,8 @@ def main() -> None:
     parser.add_argument(
         '--answer_extractor',
         choices=['auto', 'spacy', 'heuristic'],
-        default='auto',
-        help='Answer/keyphrase extraction backend.',
+        default='spacy',
+        help='Answer/keyphrase extraction backend. spaCy is the default because it ranks parsed noun spans before fallback heuristics.',
     )
     parser.add_argument('--language', choices=['auto', 'en', 'ru'], default='auto')
     parser.add_argument('--spacy_model', help='Optional spaCy model name, e.g. en_core_web_sm or ru_core_news_sm')
