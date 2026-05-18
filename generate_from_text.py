@@ -8,8 +8,12 @@ from typing import Any, Dict, List
 from src.aqg.answer_extraction import extract_answer_candidates
 
 
-def build_source(template: str, context: str, answer: str) -> str:
-    return template.format(context=' '.join(context.split()), answer=' '.join(answer.split()))
+def build_source(template: str, context: str, answer: str, language: str = 'unknown') -> str:
+    return template.format(
+        context=' '.join(context.split()),
+        answer=' '.join(answer.split()),
+        language=language,
+    )
 
 
 def save_jsonl(rows: List[Dict[str, Any]], path: str) -> None:
@@ -146,7 +150,7 @@ def main() -> None:
 
     rows: List[Dict[str, Any]] = []
     for index, candidate in enumerate(candidates, start=1):
-        source = build_source(template, context=context, answer=candidate.text)
+        source = build_source(template, context=context, answer=candidate.text, language=args.language)
         used_fallback = False
         raw_question = ''
         question = ''

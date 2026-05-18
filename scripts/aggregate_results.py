@@ -69,12 +69,21 @@ def build_row(experiment: Dict[str, Any]) -> Dict[str, Any]:
 
     for key in METRIC_KEYS:
         row[key] = metrics.get(key, '')
+
+    for language, language_metrics in metrics.get('metrics_by_language', {}).items():
+        for key in METRIC_KEYS:
+            row[f'{language}_{key}'] = language_metrics.get(key, '')
     return row
 
 
 def write_csv(rows: List[Dict[str, Any]], output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = list(rows[0].keys()) if rows else []
+    if rows:
+        base_fields = list(rows[0].keys())
+        extra_fields = sorted({key for row in rows for key in row.keys()} - set(base_fields))
+        fieldnames = base_fields + extra_fields
+    else:
+        fieldnames = []
     with output_path.open('w', encoding='utf-8-sig', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()

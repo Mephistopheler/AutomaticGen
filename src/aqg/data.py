@@ -47,8 +47,8 @@ def _repair_mojibake(text: str) -> str:
     return repaired
 
 
-def build_source_text(template: str, context: str, answer: str) -> str:
-    return template.format(context=context, answer=answer)
+def build_source_text(template: str, context: str, answer: str, language: str = 'unknown') -> str:
+    return template.format(context=context, answer=answer, language=language)
 
 
 def _from_squad_like_row(row: Dict[str, Any], dataset_name: str, language: str, template: str) -> Optional[NormalizedExample]:
@@ -72,7 +72,7 @@ def _from_squad_like_row(row: Dict[str, Any], dataset_name: str, language: str, 
         return None
 
     example_id = str(row.get('id', '')) or f'{dataset_name}-{abs(hash((context, question, answer_text)))}'
-    source = build_source_text(template, context=context, answer=answer_text)
+    source = build_source_text(template, context=context, answer=answer_text, language=language)
     return NormalizedExample(
         example_id=example_id,
         context=context,
@@ -103,7 +103,7 @@ def _flatten_sberquad_like(dataset: Dataset, dataset_name: str, language: str, t
                     answer_text = _normalize_text(first)
             if not context or not question or not answer_text:
                 continue
-            source = build_source_text(template, context=context, answer=answer_text)
+            source = build_source_text(template, context=context, answer=answer_text, language=language)
             rows.append(
                 {
                     'example_id': str(qa.get('id', '')) or f'{dataset_name}-{len(rows)}',

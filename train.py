@@ -233,6 +233,8 @@ def main() -> None:
             references=references,
             bertscore_model_type=cfg['evaluation'].get('bertscore_model_type'),
             language=cfg['evaluation'].get('language', 'ru'),
+            languages=[row.get('language', cfg['evaluation'].get('language', 'ru')) for row in val_dataset_raw],
+            bertscore_model_by_language=cfg['evaluation'].get('bertscore_model_by_language'),
         )
         save_json(metrics, logs_dir / 'validation_metrics.json')
         preview_rows = []

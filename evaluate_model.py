@@ -68,6 +68,8 @@ def main() -> None:
         references=references,
         bertscore_model_type=cfg['evaluation'].get('bertscore_model_type'),
         language=cfg['evaluation'].get('language', 'ru'),
+        languages=[row.get('language', cfg['evaluation'].get('language', 'ru')) for row in raw_dataset],
+        bertscore_model_by_language=cfg['evaluation'].get('bertscore_model_by_language'),
     )
 
     out_dir = Path(cfg['output_dir']) / 'evaluation'

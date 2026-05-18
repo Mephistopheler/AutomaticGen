@@ -3,7 +3,7 @@ output_dir: outputs/mt5_squad_en_finetune
 run_validation_generation: true
 
 model:
-  name: google/mt5-base
+  name: google/mt5-small
   use_fast: false
   use_safetensors: false
   tie_word_embeddings: false
