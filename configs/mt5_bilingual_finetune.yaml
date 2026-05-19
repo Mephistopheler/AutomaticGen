@@ -58,6 +58,9 @@ training:
   gradient_accumulation_steps: 4
   warmup_ratio: 0.08
   early_stopping_patience: 2
+  sampling_strategy: temperature
+  sampling_balance_by: language
+  sampling_temperature: 0.5
 
 generation:
   max_new_tokens: 64

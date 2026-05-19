@@ -3,12 +3,13 @@ from __future__ import annotations
 import argparse
 import math
 import time
+from collections import Counter
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 from torch.optim import AdamW
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 from tqdm.auto import tqdm
 from src.aqg.transformers_text import (
     AutoModelForSeq2SeqLM,
@@ -64,6 +65,64 @@ def generate_predictions(
             decoded = tokenizer.batch_decode(generated, skip_special_tokens=True)
             predictions.extend([text.strip() for text in decoded])
     return predictions
+
+
+def build_temperature_sampler(
+    dataset: Any,
+    *,
+    balance_by: str,
+    temperature: float,
+    seed: int,
+) -> Tuple[Optional[WeightedRandomSampler], Dict[str, Any]]:
+    """Build a replacement sampler that flattens multilingual dataset imbalance.
+
+    The group-level probability is proportional to ``count ** temperature``:
+    - ``temperature=1.0`` keeps natural corpus proportions;
+    - ``temperature=0.0`` gives every language/dataset equal probability;
+    - values between 0 and 1 are the usual multilingual compromise.
+    """
+    if temperature < 0:
+        raise ValueError('training.sampling_temperature must be >= 0')
+
+    if balance_by not in getattr(dataset, 'column_names', []):
+        return None, {
+            'strategy': 'shuffle',
+            'reason': f'column {balance_by!r} is not available in the raw training dataset',
+        }
+
+    groups = [str(value or 'unknown') for value in dataset[balance_by]]
+    counts = Counter(groups)
+    if len(counts) <= 1:
+        return None, {
+            'strategy': 'shuffle',
+            'reason': f'only one {balance_by} group is present',
+            'group_counts': dict(counts),
+        }
+
+    scaled = {group: count**temperature for group, count in counts.items()}
+    scaled_total = sum(scaled.values())
+    group_probabilities = {group: value / scaled_total for group, value in scaled.items()}
+    example_weights = [group_probabilities[group] / counts[group] for group in groups]
+
+    generator = torch.Generator()
+    generator.manual_seed(seed)
+    sampler = WeightedRandomSampler(
+        weights=torch.as_tensor(example_weights, dtype=torch.double),
+        num_samples=len(example_weights),
+        replacement=True,
+        generator=generator,
+    )
+    report = {
+        'strategy': 'temperature',
+        'balance_by': balance_by,
+        'temperature': temperature,
+        'replacement': True,
+        'num_samples_per_epoch': len(example_weights),
+        'group_counts': dict(counts),
+        'group_probabilities': group_probabilities,
+    }
+    return sampler, report
+
 
 
 def main() -> None:
@@ -129,7 +188,30 @@ def main() -> None:
 
     collator = DataCollatorForSeq2Seq(tokenizer=tokenizer, model=model, padding=True)
     batch_size = int(cfg['training']['batch_size'])
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collator)
+    sampling_strategy = cfg['training'].get('sampling_strategy', 'shuffle')
+    sampling_report: Dict[str, Any] = {'strategy': 'shuffle'}
+    train_sampler = None
+    if sampling_strategy == 'temperature':
+        train_sampler, sampling_report = build_temperature_sampler(
+            train_dataset_raw,
+            balance_by=cfg['training'].get('sampling_balance_by', 'language'),
+            temperature=float(cfg['training'].get('sampling_temperature', 0.5)),
+            seed=int(cfg['seed']),
+        )
+        print(f'Training sampler: {sampling_report}')
+    elif sampling_strategy != 'shuffle':
+        raise ValueError(
+            "Unsupported training.sampling_strategy: "
+            f"{sampling_strategy!r}. Expected 'shuffle' or 'temperature'."
+        )
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=train_sampler is None,
+        sampler=train_sampler,
+        collate_fn=collator,
+    )
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collator)
 
     optimizer = AdamW(model.parameters(), lr=float(cfg['training']['learning_rate']))
@@ -211,6 +293,7 @@ def main() -> None:
             'elapsed_seconds': elapsed,
             'elapsed_hms': format_seconds(elapsed),
             'device': str(device),
+            'sampling': sampling_report,
         },
         logs_dir / 'training_summary.json',
     )
